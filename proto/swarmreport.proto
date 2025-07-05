@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package swarmreport;
+
+// SwarmReportService is a gRPC service for managing reports from all swarm nodes.
+// A swarm node is a machine in my homelab / tailnet that runs a swarm agent.
+// Each agent has a list of services it runs, a cpu usage, memory usage, and disk usage.
+// The service allows sending system reports and retrieving swarm reports.
+// A swarm report is a collection of system reports from all swarm nodes.
+service SwarmReportService {
+  rpc SendSystemReport(SystemReport) returns (ReportResponse);
+  rpc GetSwarmReport(SwarmReportRequest) returns (SwarmReportResponse);
+}
+
+
+// SystemReport represents a report from a single swarm node.
+message SystemReport {
+  string node_id = 1; // Unique identifier for the swarm node
+  string hostname = 2; // Hostname of the swarm node
+  string ip_address = 3; // IP address of the swarm node
+  repeated Service services = 4; // List of services running on the node
+  string cpu_usage = 5; // CPU usage percentage, e.g., "25%"
+  string memory_usage = 6; // Memory usage as "2.2GB/32GB"
+  string disk_usage = 7; // Disk usage as "100GB/500GB"
+}
+
+// Service represents a service running on a swarm node.
+message Service {
+  string name = 1; // Name of the service
+  string status = 2; // Status of the service (e.g., "running", "stopped")
+  bool needs_update = 3; // Indicates if the service needs an update
+}
+
+message ReportResponse {
+  bool success = 1; // Indicates if the report was successfully received
+  string message = 2; // Additional message or error description
+}
+
+message SwarmReportRequest {
+  // This message can be extended in the future to include filters or other parameters
+}
+
+message SwarmReportResponse {
+  repeated SystemReport reports = 1; // List of system reports from all swarm nodes
+  string message = 2; // Additional message or status description
+}
