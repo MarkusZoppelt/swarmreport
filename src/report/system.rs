@@ -111,6 +111,9 @@ pub fn get_system_report() -> SystemReport {
 
     // Refresh only the data we need
     sys.refresh_cpu_usage();
+    // Wait a bit for CPU usage calculation to be accurate
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    sys.refresh_cpu_usage();
     sys.refresh_memory();
 
     SystemReport {
