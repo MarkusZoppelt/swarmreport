@@ -95,10 +95,11 @@ fn get_services() -> Vec<Service> {
 }
 
 pub fn get_system_report() -> SystemReport {
-    let mut sys = System::new_all();
+    let mut sys = System::new();
 
-    // First we update all information of our `System` struct.
-    sys.refresh_all();
+    // Only refresh the specific information we need
+    sys.refresh_cpu_usage();
+    sys.refresh_memory();
 
     SystemReport {
         node_id: format!(
