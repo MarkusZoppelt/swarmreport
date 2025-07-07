@@ -39,6 +39,7 @@ pub struct WebService {
 pub struct App {
     pub reports: HashMap<String, ReportEntry>,
     pub report_order: Vec<String>,
+    pub selected_client_index: usize,
 }
 
 /// Thread-safe shared state for the application
@@ -62,6 +63,7 @@ impl App {
         Self {
             reports: HashMap::new(),
             report_order: Vec::new(),
+            selected_client_index: 0,
         }
     }
 
@@ -92,6 +94,9 @@ impl App {
             self.reports.remove(&key);
             self.report_order.retain(|k| k != &key);
         }
+
+        // Validate selection after removing clients
+        self.validate_selection();
     }
 
     pub fn get_ordered_reports(&self) -> Vec<&ReportEntry> {
@@ -99,6 +104,43 @@ impl App {
             .iter()
             .filter_map(|key| self.reports.get(key))
             .collect()
+    }
+
+    /// Navigate to the next client
+    pub fn select_next_client(&mut self) {
+        if !self.report_order.is_empty() {
+            self.selected_client_index = (self.selected_client_index + 1) % self.report_order.len();
+        }
+    }
+
+    /// Navigate to the previous client
+    pub fn select_previous_client(&mut self) {
+        if !self.report_order.is_empty() {
+            self.selected_client_index = if self.selected_client_index == 0 {
+                self.report_order.len() - 1
+            } else {
+                self.selected_client_index - 1
+            };
+        }
+    }
+
+    /// Get the currently selected client report
+    pub fn get_selected_client(&self) -> Option<&ReportEntry> {
+        if self.selected_client_index < self.report_order.len() {
+            let key = &self.report_order[self.selected_client_index];
+            self.reports.get(key)
+        } else {
+            None
+        }
+    }
+
+    /// Ensure selected index is valid after reports change
+    pub fn validate_selection(&mut self) {
+        if self.selected_client_index >= self.report_order.len() && !self.report_order.is_empty() {
+            self.selected_client_index = self.report_order.len() - 1;
+        } else if self.report_order.is_empty() {
+            self.selected_client_index = 0;
+        }
     }
 
     /// Converts internal reports to web-friendly format with status indicators
