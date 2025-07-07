@@ -5,18 +5,24 @@ edition = "2024"
 
 [[bin]]
 name = "sentinel"
-path = "src/sentinel.rs"
+path = "src/main_sentinel.rs"
 
 [[bin]]
 name = "reporter"
 path = "src/reporter.rs"
 
 [dependencies]
+chrono = "0.4"
+crossterm = "0.28"
 local-ip-address = "0.6.5"
 prost = "0.13"
+ratatui = "0.29"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 sysinfo = "0.35.2"
 tokio = { version = "1", features = ["full"] }
 tonic = "0.13.1"
+warp = "0.3"
 
 [build-dependencies]
 tonic-build = "0.13.1"

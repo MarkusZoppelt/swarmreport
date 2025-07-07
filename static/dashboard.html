@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwarmReport Dashboard</title>
+    <style>
+        /* TokyoNight Color Scheme */
+        :root {
+            --bg-primary: #1a1b26;
+            --bg-secondary: #24283b;
+            --bg-tertiary: #414868;
+            --bg-accent: #2d3748;
+            --text-primary: #c0caf5;
+            --text-secondary: #9aa5ce;
+            --text-muted: #565f89;
+            --accent-blue: #7aa2f7;
+            --accent-purple: #bb9af7;
+            --accent-cyan: #7dcfff;
+            --accent-green: #9ece6a;
+            --accent-yellow: #e0af68;
+            --accent-orange: #ff9e64;
+            --accent-red: #f7768e;
+            --accent-magenta: #ad8ee6;
+            --border-color: #3b4261;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+        
+        body { 
+            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, monospace; 
+            background: var(--bg-primary);
+            color: var(--text-primary); 
+            padding: 16px;
+            line-height: 1.5;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+        
+        .header h1 { 
+            color: var(--accent-cyan); 
+            margin-bottom: 8px; 
+            font-size: 1.6rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px var(--shadow);
+        }
+        
+        .header p { 
+            color: var(--text-secondary); 
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+        }
+        
+        .header #client-count {
+            color: var(--accent-green);
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .client-card {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            border-left: 3px solid;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .client-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .client-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px var(--shadow);
+            border-color: var(--accent-cyan);
+        }
+        
+        .client-card:hover::before {
+            opacity: 1;
+        }
+        
+        .client-card.recent { 
+            border-left-color: var(--accent-green);
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(158, 206, 106, 0.05) 100%);
+        }
+        
+        .client-card.normal { 
+            border-left-color: var(--accent-yellow);
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(224, 175, 104, 0.05) 100%);
+        }
+        
+        .client-card.stale { 
+            border-left-color: var(--accent-red);
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(247, 118, 142, 0.05) 100%);
+        }
+        
+        .client-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .hostname { 
+            font-size: 1.1rem; 
+            font-weight: 700; 
+            color: var(--accent-cyan);
+            text-shadow: 0 1px 2px var(--shadow);
+        }
+        
+        .ip { 
+            color: var(--text-muted); 
+            font-size: 0.75rem;
+            font-family: 'SF Mono', Consolas, monospace;
+            background: var(--bg-tertiary);
+            padding: 3px 6px;
+            border-radius: 4px;
+            margin-top: 3px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 6px currentColor;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        .status-dot.recent { 
+            background: var(--accent-green);
+            box-shadow: 0 0 12px var(--accent-green);
+        }
+        
+        .status-dot.normal { 
+            background: var(--accent-yellow);
+            box-shadow: 0 0 12px var(--accent-yellow);
+        }
+        
+        .status-dot.stale { 
+            background: var(--accent-red);
+            box-shadow: 0 0 12px var(--accent-red);
+        }
+        
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin: 16px 0;
+        }
+        
+        .metric {
+            text-align: center;
+            padding: 12px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+        
+        .metric:hover {
+            background: var(--bg-accent);
+            transform: translateY(-2px);
+        }
+        
+        .metric-label { 
+            font-size: 0.7rem; 
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        
+        .metric-value { 
+            font-size: 0.9rem; 
+            font-weight: 700;
+            color: var(--text-primary);
+            font-family: 'SF Mono', Consolas, monospace;
+        }
+        
+        .metric:nth-child(1) .metric-value { color: var(--accent-orange); }
+        .metric:nth-child(2) .metric-value { color: var(--accent-purple); }
+        .metric:nth-child(3) .metric-value { color: var(--accent-blue); }
+        
+        .services {
+            margin-top: 16px;
+        }
+        
+        .services h4 { 
+            margin-bottom: 8px; 
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            font-weight: 600;
+        }
+        
+        .service {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 0.8rem;
+            padding: 6px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+        
+        .service:hover {
+            background: var(--bg-accent);
+            border-color: var(--accent-cyan);
+        }
+        
+        .service-status {
+            margin-right: 8px;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+        
+        .service-status.running { 
+            color: var(--accent-green);
+            text-shadow: 0 0 4px var(--accent-green);
+        }
+        
+        .service-status.stopped { 
+            color: var(--accent-red);
+            text-shadow: 0 0 4px var(--accent-red);
+        }
+        
+        .service-name {
+            flex: 1;
+            color: var(--text-primary);
+            font-family: 'SF Mono', Consolas, monospace;
+        }
+        
+        .service-update {
+            color: var(--accent-yellow);
+            font-size: 0.7rem;
+            font-style: italic;
+        }
+        
+        .last-updated {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 12px;
+            text-align: center;
+            padding: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .no-clients {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+            font-size: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 2px dashed var(--border-color);
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            border-top-color: var(--accent-cyan);
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 6px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Mobile responsive adjustments */
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+            
+            .header {
+                padding: 12px;
+                margin-bottom: 16px;
+            }
+            
+            .header h1 {
+                font-size: 1.4rem;
+            }
+            
+            .header p {
+                font-size: 0.8rem;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            
+            .client-card {
+                padding: 12px;
+            }
+            
+            .hostname {
+                font-size: 1rem;
+            }
+            
+            .metrics {
+                gap: 8px;
+            }
+            
+            .metric {
+                padding: 8px 6px;
+            }
+            
+            .metric-value {
+                font-size: 0.8rem;
+            }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-cyan);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SwarmReport Dashboard</h1>
+        <p>Real-time monitoring of connected clients</p>
+        <p id="client-count">Loading<span class="loading"></span></p>
+    </div>
+    
+    <div id="clients-grid" class="grid">
+        <div class="no-clients">Loading clients...</div>
+    </div>
+
+    <script>
+        function formatTime(timestamp) {
+            return new Date(timestamp * 1000).toLocaleTimeString();
+        }
+
+        function formatSecondsAgo(seconds) {
+            if (seconds < 60) return `${seconds}s ago`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+            return `${Math.floor(seconds / 3600)}h ago`;
+        }
+
+        function renderClients(clients) {
+            const grid = document.getElementById('clients-grid');
+            const countEl = document.getElementById('client-count');
+            
+            countEl.innerHTML = `${clients.length} active client${clients.length !== 1 ? 's' : ''}`;
+            
+            if (clients.length === 0) {
+                grid.innerHTML = '<div class="no-clients">No clients connected</div>';
+                return;
+            }
+
+            grid.innerHTML = clients.map(client => `
+                <div class="client-card ${client.status}">
+                    <div class="client-header">
+                        <div>
+                            <div class="hostname">${client.hostname}</div>
+                            <div class="ip">${client.ip_address}</div>
+                        </div>
+                        <div class="status-dot ${client.status}"></div>
+                    </div>
+                    
+                    <div class="metrics">
+                        <div class="metric">
+                            <div class="metric-label">CPU</div>
+                            <div class="metric-value">${client.cpu_usage.toFixed(1)}%</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Memory</div>
+                            <div class="metric-value">${client.memory_usage}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Disk</div>
+                            <div class="metric-value">${client.disk_usage}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="services">
+                        <h4>Services</h4>
+                        ${client.services.length === 0 ? 
+                            '<div class="service"><span class="service-name" style="color: var(--text-muted); font-style: italic;">No services detected</span></div>' :
+                            client.services.slice(0, 5).map(service => `
+                                <div class="service">
+                                    <span class="service-status ${service.status}">
+                                        ${service.status === 'running' ? '●' : '○'}
+                                    </span>
+                                    <span class="service-name">${service.name}</span>
+                                    ${service.needs_update ? '<span class="service-update">update needed</span>' : ''}
+                                </div>
+                            `).join('')
+                        }
+                    </div>
+                    
+                    <div class="last-updated">
+                        Last updated: ${formatSecondsAgo(client.seconds_since_update)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function fetchClients() {
+            try {
+                const response = await fetch('/api/clients');
+                const clients = await response.json();
+                renderClients(clients);
+            } catch (error) {
+                console.error('Failed to fetch clients:', error);
+                document.getElementById('clients-grid').innerHTML = 
+                    '<div class="no-clients">Failed to load clients<br><small>Check console for details</small></div>';
+            }
+        }
+
+        // Initial load
+        fetchClients();
+        
+        // Auto-refresh every 2 seconds
+        setInterval(fetchClients, 2000);
+    </script>
+</body>
+</html>
