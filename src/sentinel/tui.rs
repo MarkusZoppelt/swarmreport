@@ -155,10 +155,7 @@ fn render_clients_list(
             let time_str = datetime.format("%H:%M:%S").to_string();
 
             let content = Line::from(vec![
-                Span::styled(
-                    format!("{status_icon} "),
-                    Style::default().fg(status_color),
-                ),
+                Span::styled(format!("{status_icon} "), Style::default().fg(status_color)),
                 Span::styled(
                     format!("{:<15}", entry.report.hostname),
                     Style::default()
@@ -274,10 +271,7 @@ fn render_overview_stats(
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(format!("● {online} "), Style::default().fg(Color::Green)),
-            Span::styled(
-                format!("◐ {warning} "),
-                Style::default().fg(Color::Yellow),
-            ),
+            Span::styled(format!("◐ {warning} "), Style::default().fg(Color::Yellow)),
             Span::styled(format!("○ {offline}"), Style::default().fg(Color::Red)),
         ]),
         Line::from(vec![
@@ -503,10 +497,7 @@ fn render_services_overview(
             };
 
             let content = Line::from(vec![
-                Span::styled(
-                    format!("{status_icon} "),
-                    Style::default().fg(status_color),
-                ),
+                Span::styled(format!("{status_icon} "), Style::default().fg(status_color)),
                 Span::styled(
                     format!("{:<25}", service.name),
                     Style::default().fg(Color::White),
