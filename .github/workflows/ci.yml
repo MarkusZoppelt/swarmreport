@@ -11,39 +11,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: Check & Lint
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install Nix
-      uses: cachix/install-nix-action@v24
-      with:
-        github_access_token: ${{ secrets.GITHUB_TOKEN }}
-        extra_nix_config: |
-          experimental-features = nix-command flakes
-          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-
-    - name: Setup Nix cache
-      uses: cachix/cachix-action@v12
-      with:
-        name: nix-community
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-        skipPush: ${{ secrets.CACHIX_AUTH_TOKEN == '' }}
-
-    - name: Check flake
-      run: nix flake check --show-trace
-
-    - name: Check code formatting
-      run: nix develop --command cargo fmt --check
-
-    - name: Run clippy
-      run: nix develop --command cargo clippy -- -D warnings
-
   test:
-    name: Test
+    name: Test & Lint
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -64,53 +33,18 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
         skipPush: ${{ secrets.CACHIX_AUTH_TOKEN == '' }}
 
-    - name: Run tests
-      run: nix develop --command cargo test --verbose
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [check, test]
-    strategy:
-      matrix:
-        target: [sentinel, reporter, swarmreport]
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install Nix
-      uses: cachix/install-nix-action@v24
-      with:
-        github_access_token: ${{ secrets.GITHUB_TOKEN }}
-        extra_nix_config: |
-          experimental-features = nix-command flakes
-          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-
-    - name: Setup Nix cache
-      uses: cachix/cachix-action@v12
-      with:
-        name: nix-community
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-        skipPush: ${{ secrets.CACHIX_AUTH_TOKEN == '' }}
-
-    - name: Build ${{ matrix.target }}
-      run: nix build .#${{ matrix.target }} --print-build-logs
-
-    - name: Check binary exists
+    - name: Check, lint and test
       run: |
-        ls -la result/bin/
-        file result/bin/*
+        nix develop --command cargo fmt --check
+        nix develop --command cargo clippy -- -D warnings
+        nix develop --command cargo test --verbose
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: swarmreport-${{ matrix.target }}-linux-x86_64
-        path: result/bin/
-        retention-days: 30
 
-  security-audit:
+
+  audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -133,42 +67,15 @@ jobs:
     - name: Run cargo audit
       run: nix develop --command cargo audit
 
-  build-dev-shell:
-    name: Build Dev Shell
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
 
-    - name: Install Nix
-      uses: cachix/install-nix-action@v24
-      with:
-        github_access_token: ${{ secrets.GITHUB_TOKEN }}
-        extra_nix_config: |
-          experimental-features = nix-command flakes
-          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-
-    - name: Setup Nix cache
-      uses: cachix/cachix-action@v12
-      with:
-        name: nix-community
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-        skipPush: ${{ secrets.CACHIX_AUTH_TOKEN == '' }}
-
-    - name: Build development shell
-      run: nix develop --command echo "Development shell built successfully"
-
-    - name: Verify development tools
-      run: |
-        nix develop --command cargo --version
-        nix develop --command rustc --version
-        nix develop --command protoc --version
 
   release:
-    name: Create Release
+    name: Release
     runs-on: ubuntu-latest
-    needs: [check, test, build, security-audit]
+    needs: [test, audit]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -190,15 +97,13 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
         skipPush: ${{ secrets.CACHIX_AUTH_TOKEN == '' }}
 
-    - name: Build release binaries
+    - name: Build binaries
       run: |
-        nix build .#sentinel --print-build-logs
-        cp -r result release-sentinel
-        nix build .#reporter --print-build-logs  
-        cp -r result release-reporter
         mkdir -p release
-        cp release-sentinel/bin/sentinel release/
-        cp release-reporter/bin/reporter release/
+        nix build .#sentinel --print-build-logs
+        cp result/bin/sentinel release/
+        nix build .#reporter --print-build-logs  
+        cp result/bin/reporter release/
 
     - name: Generate release notes
       id: release_notes
@@ -235,23 +140,11 @@ jobs:
         export SWARM_SENTINEL_ADDR="http://your-sentinel:50051"
         ./reporter
         \`\`\`
-        
-        ### ✨ Features
-        - 📊 Real-time system metrics (CPU, memory, disk)
-        - 🐳 Docker container monitoring
-        - 🖥️ Terminal UI with color-coded status
-        - 🌐 Web dashboard for team access
-        - 🔄 Auto-cleanup of offline clients
-        - 🚀 Built with Nix for reproducible builds
-        
-        ### 🔒 Security
-        - All dependencies audited with \`cargo audit\`
-        - Statically linked binaries
-        - No external runtime dependencies
+
         EOF
 
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           release/sentinel
@@ -259,101 +152,8 @@ jobs:
         body_path: release_notes.md
         draft: false
         prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-  docker:
-    name: Build Docker Images
-    runs-on: ubuntu-latest
-    needs: [check, test, build]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
-    strategy:
-      matrix:
-        component: [sentinel, reporter]
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ghcr.io/${{ github.repository }}-${{ matrix.component }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Create Dockerfile
-      run: |
-        cat > Dockerfile.${{ matrix.component }} << 'EOF'
-        # Multi-stage build using Nix
-        FROM nixos/nix:latest AS builder
-        
-        # Enable flakes
-        RUN echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
-        
-        # Copy source code
-        COPY . /src
-        WORKDIR /src
-        
-        # Build the specific component
-        RUN nix build .#${{ matrix.component }} --print-build-logs
-        RUN mkdir -p /output && cp -r result/bin/* /output/
-        
-        # Runtime image - minimal distroless
-        FROM gcr.io/distroless/cc-debian12:latest
-        
-        # Copy binary from builder
-        COPY --from=builder /output/${{ matrix.component }} /usr/local/bin/${{ matrix.component }}
-        
-        # Set up runtime
-        EXPOSE 50051 6969
-        USER 65532:65532
-        
-        ENTRYPOINT ["/usr/local/bin/${{ matrix.component }}"]
-        EOF
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: Dockerfile.${{ matrix.component }}
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        platforms: linux/amd64
-
-  notify:
-    name: Notify Success
-    runs-on: ubuntu-latest
-    needs: [check, test, build, security-audit]
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-    - name: Notify on success
-      if: needs.check.result == 'success' && needs.test.result == 'success' && needs.build.result == 'success' && needs.security-audit.result == 'success'
-      run: |
-        echo "✅ All CI checks passed for SwarmReport!"
-        echo "🚀 Ready for deployment"
-        
-    - name: Notify on failure  
-      if: needs.check.result == 'failure' || needs.test.result == 'failure' || needs.build.result == 'failure' || needs.security-audit.result == 'failure'
-      run: |
-        echo "❌ CI checks failed for SwarmReport"
-        echo "🔍 Check the logs for details"
-        exit 1
